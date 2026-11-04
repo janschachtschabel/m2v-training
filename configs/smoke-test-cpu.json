@@ -1,0 +1,43 @@
+{
+  "name": "smoke-test",
+  "synthetic": {
+    "enabled": true,
+    "max_documents": 1500
+  },
+  "keyword_lists": {
+    "files": [
+      "data/keywords.txt"
+    ],
+    "max_keywords": 2000
+  },
+  "cross_validation": {
+    "folds": 3,
+    "final_model": false,
+    "shared_vocabulary": true
+  },
+  "teacher": {
+    "model_name": "Alibaba-NLP/gte-multilingual-base",
+    "trust_remote_code": true,
+    "device": "cpu",
+    "batch_size": 16,
+    "max_seq_length": 256
+  },
+  "vocab": {
+    "max_vocab_size": 50000
+  },
+  "tokenlearn": {
+    "max_texts": 3000,
+    "train": {
+      "device": "cpu",
+      "max_epochs": 5
+    }
+  },
+  "pairs": {
+    "enabled": true,
+    "max_pairs": 20000,
+    "train": {
+      "device": "cpu",
+      "max_epochs": 3
+    }
+  }
+}

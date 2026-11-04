@@ -1,0 +1,48 @@
+{
+  "name": "cv-bge-m3",
+  "synthetic": {
+    "enabled": true
+  },
+  "keyword_lists": {
+    "files": [
+      "data/keywords.txt"
+    ]
+  },
+  "cross_validation": {
+    "folds": 3,
+    "final_model": false
+  },
+  "teacher": {
+    "model_name": "BAAI/bge-m3",
+    "pooling": "mean",
+    "device": "cuda",
+    "batch_size": 64,
+    "max_seq_length": 512,
+    "dtype": "float16"
+  },
+  "pca_dims": 256,
+  "input_mode": "mixed",
+  "vocab": {
+    "max_vocab_size": 250000
+  },
+  "tokenlearn": {
+    "train": {
+      "device": "cuda",
+      "max_epochs": 40
+    }
+  },
+  "pairs": {
+    "enabled": true,
+    "max_pairs": null,
+    "train": {
+      "device": "cuda",
+      "max_epochs": 35
+    }
+  },
+  "quantize_to": "float16",
+  "baseline_models": [
+    "JanSchachtschabel/m2v-gte-256-edu-v2",
+    "minishlab/potion-multilingual-128M"
+  ],
+  "license": "mit"
+}

@@ -1,0 +1,85 @@
+# Generic format, platform, channel and marketing tags from the WLO export.
+# One keyword per line, compared case-insensitively. Lines starting with # are ignored.
+# Subject names (Mathematik, Biologie, ...) are deliberately NOT listed.
+erklärvideo
+lernvideo
+video
+video tutorial
+tutorial
+tutorials
+how to
+animation
+cartoons
+zeichentrick
+image
+template
+vorlage
+webm-version
+mp4-version
+youtube
+h5p
+diy
+computer science
+science
+engineering
+education
+educational
+selbstgesteuertes lernen
+akademische grundlagen
+online learning
+online education
+online class
+video class
+lessons
+learn
+learning
+lernen
+erklären
+erklärt
+erklärung
+einfach
+einfach erklärt
+easy
+schnell
+besser
+individuell
+persönlicher
+spaß
+free
+kostenlos
+umsonst
+beispiel
+hilfe
+lernhilfe
+nachhilfe
+nachhilfelehrer
+nachhilfeunterricht
+mathehilfe
+mathematiknachhilfe
+onlinehilfe
+onlinelehrer
+onlinenachhilfe
+onlineunterricht
+schülernachhilfe
+online
+scishow
+hank
+green
+hank green
+john green
+vlogbrothers
+crash course
+crashcourse
+daniel
+jung
+daniel jung
+mathe by daniel jung
+lehrerschmidt
+mrwissen2go
+obachtmathe
+mathematrick
+englishclass101
+deutsche welle
+encyclopaedia cinematographica
+quadis
+profilehreplus

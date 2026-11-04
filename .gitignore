@@ -1,0 +1,16 @@
+# environments and caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# never commit data, runs, models, teacher caches or credentials
+data/
+runs/
+models/
+cache/
+.env
+*.token

@@ -1,0 +1,9 @@
+[server]
+# Nur auf diesem Rechner erreichbar: die Oberfläche hat keine Anmeldung, kann Code von Hub-Modellen ausführen
+# (trust_remote_code) und mit deinem Hugging-Face-Login hochladen. Zum Freigeben im Netz bewusst ändern.
+address = "localhost"
+# Metadaten-Exporte können auch gepackt größer als 200 MB sein (Streamlit-Standard)
+maxUploadSize = 2048
+
+[browser]
+gatherUsageStats = false
