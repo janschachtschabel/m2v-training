@@ -54,7 +54,8 @@ einer Fehlermeldung abgelehnt.
 | `teacher.batch_size` | 64 | Texte pro Lehrer-Schritt |
 | `teacher.max_seq_length` | `null` | Lehrer-Eingabe in Tokens begrenzen (Speicher wächst quadratisch mit der Länge) |
 | `teacher.dtype` | `auto` | `float16`/`bfloat16` halbieren auf der GPU Speicher und Zeit; die CPU nutzt immer float32 |
-| `teacher.device` | `null` (automatisch) | `cuda`, `cpu`, `mps` |
+| `teacher.device` | `null` (automatisch) | `cuda`, `cuda:0`, `cpu`, `mps` |
+| `teacher.devices` | `[]` | mehrere GPUs für die Lehrer-Embeddings, z. B. `["cuda:0", "cuda:1"]`: je eine Lehrer-Kopie pro GPU, die Texte werden gleichmäßig verteilt; ändert den Cache-Schlüssel nicht ([zwei-gpus.md](zwei-gpus.md)) |
 
 `max_seq_length` oder `dtype` zu ändern, ändert den Cache-Schlüssel der Lehrer-Embeddings (die Standardwerte
 lassen ältere Caches gültig).
@@ -95,5 +96,7 @@ lassen ältere Caches gültig).
 | `configs/rtx5060ti-04-qwen3-embedding-0.6b.json` | Qwen3-Embedding-0.6B, 3-Fold |
 | `configs/rtx5060ti-05-qwen3-embedding-4b.json` | Qwen3-Embedding-4B, 3-Fold |
 | `configs/rtx5060ti-final-5fold.json` | 5-Fold-Schätzung plus finales Modell auf allen Daten (Qwen3-Embedding-4B; durch den Gewinner ersetzen) |
+| `configs/dual-gpu/final-5fold-qwen3-4b.json` | wie oben, Lehrer-Embeddings auf beiden GPUs eines PCs mit zwei Karten |
+| `configs/dual-gpu/final-5fold-qwen3-4b-512.json` | dasselbe mit 512 Dimensionen (nutzt die gespeicherten Lehrer-Embeddings des 256er-Laufs) |
 
 Alle erwarten `data/keywords.txt`; ohne `keyword_lists` wird nur mit dem synthetischen Datensatz trainiert.

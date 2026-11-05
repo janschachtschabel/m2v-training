@@ -91,6 +91,12 @@ def options_form(base: RunConfig, data_files: list[str], keyword_lists: list[str
         teacher["batch_size"] = right.number_input(
             "Batchgröße Lehrer", 1, 1024, base.teacher.batch_size, help="Texte pro Schritt des Lehrers; größer = etwas schneller, mehr RAM. CPU: 32–64"
         )
+        devices_text = left.text_input(
+            "Mehrere GPUs (Lehrer-Embeddings)",
+            ", ".join(base.teacher.devices),
+            help="z. B. cuda:0, cuda:1: je eine Lehrer-Kopie pro GPU, die Texte werden aufgeteilt. Leer: nur das Gerät oben",
+        )
+        teacher["devices"] = [item.strip() for item in devices_text.split(",") if item.strip()]
         poolings = ["mean", "last", "first", "pooler"]
         teacher["pooling"] = left.selectbox(
             "Pooling (Destillation)",

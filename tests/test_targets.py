@@ -140,3 +140,31 @@ def test_reduce_targets_with_rows_repeats_and_fits_on_distinct_rows():
     rows = [3, 3, 5, 7, 9, 11, 13]
     repeated = reduce_targets(vectors, 4, rows=rows)
     assert repeated.shape == (7, 4) and np.allclose(repeated[0], repeated[1])
+
+
+def test_two_devices_give_the_same_embeddings_as_one(tiny_teacher, tmp_path, monkeypatch):
+    import sys
+    import types
+
+    # Spawned workers re-import the parent's __main__; under pytest other tests may have replaced it (the
+    # Streamlit app tests do). `python -m m2vtrain` itself has a guarded __main__.
+    monkeypatch.setitem(sys.modules, "__main__", types.ModuleType("__main__"))
+    texts = ["Bruch", "Photosynthese", "Zellatmung", "Gleichung", "Brüche"]
+    single = encode_with_teacher(texts, TeacherOptions(model_name=tiny_teacher, device="cpu"), cache_dir=tmp_path / "a")
+    multi = encode_with_teacher(
+        texts,
+        TeacherOptions(model_name=tiny_teacher, device="cpu", devices=("cpu", "cpu:0"), batch_size=2),
+        cache_dir=tmp_path / "b",
+        chunk_size=3,
+    )
+    np.testing.assert_allclose(multi, single, atol=1e-5)
+    assert not list((tmp_path / "b").glob("*.partial.npy"))
+
+
+def test_devices_do_not_change_the_cache_key_and_must_be_distinct(tiny_teacher):
+    one = TeacherOptions(model_name=tiny_teacher)
+    two = TeacherOptions(model_name=tiny_teacher, devices=["cuda:0", "cuda:1"])
+    assert two.devices == ("cuda:0", "cuda:1")
+    assert targets._cache_key(["Bruch"], one) == targets._cache_key(["Bruch"], two)
+    with pytest.raises(ValueError, match="repeat"):
+        TeacherOptions(model_name=tiny_teacher, devices=("cuda:0", "cuda:0"))

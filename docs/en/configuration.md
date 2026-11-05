@@ -53,7 +53,8 @@ Unknown keys and wrong types are rejected with an error message.
 | `teacher.batch_size` | 64 | texts per teacher step |
 | `teacher.max_seq_length` | `null` | cap the teacher input in tokens (memory grows quadratically with length) |
 | `teacher.dtype` | `auto` | `float16`/`bfloat16` on a GPU halve memory and time; the CPU always uses float32 |
-| `teacher.device` | `null` (auto) | `cuda`, `cpu`, `mps` |
+| `teacher.device` | `null` (auto) | `cuda`, `cuda:0`, `cpu`, `mps` |
+| `teacher.devices` | `[]` | several GPUs for the teacher embeddings, e.g. `["cuda:0", "cuda:1"]`: one teacher copy per GPU, texts split evenly; does not change the cache key ([dual-gpu.md](dual-gpu.md)) |
 
 Changing `max_seq_length` or `dtype` changes the cache key of the teacher embeddings (default values keep older
 caches valid).
@@ -94,5 +95,7 @@ caches valid).
 | `configs/rtx5060ti-04-qwen3-embedding-0.6b.json` | Qwen3-Embedding-0.6B, 3-fold |
 | `configs/rtx5060ti-05-qwen3-embedding-4b.json` | Qwen3-Embedding-4B, 3-fold |
 | `configs/rtx5060ti-final-5fold.json` | 5-fold estimate plus final model on all data (Qwen3-Embedding-4B; swap in the winner) |
+| `configs/dual-gpu/final-5fold-qwen3-4b.json` | the same, teacher embeddings on both GPUs of a two-card PC |
+| `configs/dual-gpu/final-5fold-qwen3-4b-512.json` | the same with 512 dimensions (reuses the cached teacher embeddings of the 256 run) |
 
 All of them expect `data/keywords.txt`; remove `keyword_lists` to train on the synthetic dataset alone.

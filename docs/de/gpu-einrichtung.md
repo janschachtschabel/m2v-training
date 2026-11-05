@@ -77,6 +77,10 @@ Laptop-CPU schaffte der gte-Lehrer etwa 7–10 Texte pro Sekunde. Auf einer Blac
 Ein 3-Fold-Lehrervergleich passt also in eine Nacht pro Lehrer, der finale 5-Fold-Lauf mit Qwen3-4B in ein bis
 zwei Tage. Wird der Speicher knapp, zuerst `teacher.batch_size` senken, dann `teacher.max_seq_length`.
 
+Ein PC mit zwei solchen Karten fährt den Vergleich als zwei parallele Warteschlangen und verteilt die
+Lehrer-Embeddings des finalen Laufs auf beide Karten; er lässt sich per SSH von einem anderen Rechner steuern:
+[zwei-gpus.md](zwei-gpus.md).
+
 ## Speicher
 
 - GPU: Qwen3-Embedding-4B braucht in bf16 etwa 8 GB für die Gewichte; Batch 16 mit 512 Tokens passt in den Rest.

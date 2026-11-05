@@ -75,6 +75,9 @@ the gte teacher encoded about 7–10 texts per second. On a 16 GB Blackwell card
 A 3-fold teacher comparison therefore fits into a night per teacher; the final 5-fold run with Qwen3-4B into one
 to two days. If memory runs out, lower `teacher.batch_size` first, then `teacher.max_seq_length`.
 
+A PC with two such cards runs the comparison as two parallel queues and splits the final run's teacher
+embeddings across both cards; it can be controlled from another computer over SSH: [dual-gpu.md](dual-gpu.md).
+
 ## Memory
 
 - GPU: Qwen3-Embedding-4B needs about 8 GB for weights in bf16; batch 16 at 512 tokens fits into the rest.

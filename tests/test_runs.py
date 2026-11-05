@@ -285,3 +285,27 @@ def test_stop_lets_a_real_run_record_its_cancellation(tmp_path, tiny_teacher):
     status = read_status(run_dir)
     assert status.state in (RunState.CANCELLED, RunState.FINISHED)  # a tiny run may finish before the signal
     assert status.message != "Vom Benutzer gestoppt" or status.state is RunState.CANCELLED
+
+
+def test_cli_status_lists_runs_newest_first(tmp_path, capsys):
+    from m2vtrain.cli import main
+
+    _fake_run(tmp_path, "20261105-100000-a", name="a")
+    time.sleep(0.05)
+    _fake_run(tmp_path, "20261105-110000-b", name="b")
+
+    assert main(["status", "--runs-dir", str(tmp_path)]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("20261105-110000-b  fertig")
+    assert lines[1].startswith("20261105-100000-a")
+    assert main(["status", "--runs-dir", str(tmp_path / "missing")]) == 0
+    assert "No runs" in capsys.readouterr().out
+
+
+def test_cli_stop_without_running_runs(tmp_path, capsys):
+    from m2vtrain.cli import main
+
+    _fake_run(tmp_path, "20261105-100000-a", name="a")
+    assert main(["stop", "--runs-dir", str(tmp_path)]) == 0
+    assert "No running runs" in capsys.readouterr().out
+    assert main(["stop", str(tmp_path / "20261105-100000-a")]) == 1

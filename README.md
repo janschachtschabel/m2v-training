@@ -75,7 +75,9 @@ before publishing: [docs/en/data-and-licensing.md](docs/en/data-and-licensing.md
 Recommendation: compare gte (reference), bge-m3 and Qwen3-Embedding-4B with 3-fold cross-validation, then run
 `rtx5060ti-final-5fold.json` with the winner. Reasoning, sources and what does not fit or is not freely licensed:
 [docs/en/teacher-models.md](docs/en/teacher-models.md). GPU setup and run times:
-[docs/en/gpu-setup.md](docs/en/gpu-setup.md).
+[docs/en/gpu-setup.md](docs/en/gpu-setup.md). A PC with **two 16 GB GPUs**, controlled from another computer over SSH
+(parallel teacher comparison, final run on both cards, `scripts/remote.sh` / `remote.ps1`):
+[docs/en/dual-gpu.md](docs/en/dual-gpu.md).
 
 ## Evaluation and k-fold cross-validation
 
@@ -92,6 +94,8 @@ python -m m2vtrain init-config my.json --synthetic --keywords data/keywords.txt 
 python -m m2vtrain run my.json                      # run folder: runs/<timestamp>-<name>
 python -m m2vtrain run runs/<run>/config.json       # repeat a run with the same options
 python -m m2vtrain compare [runs/a runs/b] [--mode lemma]
+python -m m2vtrain status                           # state and stage of the latest runs
+python -m m2vtrain stop [runs/<run>]                # stop one or all running runs
 python -m m2vtrain extract-keywords export.csv.gz data/keywords.txt [--min-docs 3] [--with-counts]
 python -m m2vtrain upload models/<run> <user>/<model> [--public]
 ```
@@ -104,8 +108,8 @@ types are rejected. All options: [docs/en/configuration.md](docs/en/configuratio
 ```
 m2vtrain/          Python package (data, sources, split, vocab, targets, train, evaluate, pipeline, export, cli)
 ui/                Streamlit UI (German)
-configs/           ready-made run configs (CPU smoke test, RTX 5060 Ti teacher comparison, final run)
-scripts/           setup (Windows/Linux), GPU check, detached runs, run queues
+configs/           ready-made run configs (CPU smoke test, RTX 5060 Ti teacher comparison, final run, dual-gpu/)
+scripts/           setup (Windows/Linux), GPU check, detached runs, run queues, server/remote control over SSH
 docs/en, docs/de   documentation in English and German
 tests/             offline tests with a tiny local teacher (no downloads)
 ```
@@ -135,6 +139,7 @@ model.encode([to_lemma_text("die schülerinnen rechnen mit brüchen")])   # -> "
 - [Teacher models](docs/en/teacher-models.md)
 - [Evaluation and k-fold](docs/en/evaluation.md)
 - [GPU setup (RTX 5060 Ti)](docs/en/gpu-setup.md)
+- [Two GPUs and remote control](docs/en/dual-gpu.md)
 - [Configuration reference](docs/en/configuration.md)
 - [Lessons learned from earlier runs](docs/en/lessons-learned.md)
 

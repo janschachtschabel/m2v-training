@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
@@ -28,7 +29,9 @@ class TeacherOptions:
     models such as Qwen3-Embedding, "first" for CLS models, "pooler"); target embeddings use the teacher's own
     Sentence Transformers pooling. `document_prefix` is prepended to every text, e.g. "passage: " for e5 models.
     `max_seq_length` caps the teacher's input in tokens (None: the model's own limit; long inputs cost memory
-    quadratically). `device` None or "auto" picks the best available device. `dtype` "auto" means float32 on
+    quadratically). `device` None or "auto" picks the best available device. `devices` (e.g. ["cuda:0",
+    "cuda:1"]) computes the target embeddings on several GPUs at once, one teacher copy per GPU; distillation and
+    the teacher evaluation still use `device`. `dtype` "auto" means float32 on
     the CPU and the stored precision on a GPU; "bfloat16"/"float16" halve memory and time on a GPU.
     """
 
@@ -40,8 +43,12 @@ class TeacherOptions:
     device: str | None = None
     max_seq_length: int | None = None
     dtype: str = "auto"
+    devices: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "devices", tuple(str(device) for device in self.devices))
+        if len(set(self.devices)) != len(self.devices):
+            raise ValueError(f"teacher.devices must not repeat a device, got {list(self.devices)}.")
         if self.dtype not in DTYPES:
             raise ValueError(f"teacher.dtype must be one of {list(DTYPES)}, got {self.dtype!r}.")
         if self.pooling not in POOLING_MODES:
@@ -88,7 +95,7 @@ def _load_dtype(device: str | None, dtype: str = "auto"):
     import torch
 
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-    if device == "cpu":
+    if str(device).startswith("cpu"):
         return torch.float32
     return "auto" if dtype == "auto" else getattr(torch, dtype)
 
@@ -150,6 +157,51 @@ def load_teacher(options: TeacherOptions):
     return model
 
 
+_WORKER_TEACHER = None  # the teacher of a multi-device worker process
+
+
+def _init_worker(options: dict, device: str) -> None:
+    global _WORKER_TEACHER
+    _WORKER_TEACHER = load_teacher(TeacherOptions(**{**options, "device": device, "devices": ()}))
+
+
+def _encode_in_worker(texts: list[str], batch_size: int) -> np.ndarray:
+    vectors = _WORKER_TEACHER.encode(texts, batch_size=batch_size, normalize_embeddings=True)
+    return np.asarray(vectors, dtype=np.float32)
+
+
+class MultiDeviceTeacher:
+    """One teacher process per device; `encode` splits each batch of texts evenly across them.
+
+    Each process loads its own copy of the teacher directly onto its device, so no device holds two copies.
+    """
+
+    def __init__(self, options: TeacherOptions):
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+
+        context = multiprocessing.get_context("spawn")  # CUDA cannot be used in forked processes
+        raw = asdict(options)
+        self._executors = [
+            ProcessPoolExecutor(1, mp_context=context, initializer=_init_worker, initargs=(raw, device))
+            for device in options.devices
+        ]
+        logger.info("Teacher embeddings on %d devices: %s", len(options.devices), ", ".join(options.devices))
+
+    def encode(self, texts: Sequence[str], batch_size: int, normalize_embeddings: bool = True) -> np.ndarray:
+        parts = [list(part) for part in np.array_split(np.asarray(texts, dtype=object), len(self._executors)) if len(part)]
+        futures = [executor.submit(_encode_in_worker, part, batch_size) for executor, part in zip(self._executors, parts)]
+        return np.concatenate([future.result() for future in futures])
+
+    def close(self) -> None:
+        for executor in self._executors:
+            executor.shutdown(cancel_futures=True)
+
+
+def _open_teacher(options: TeacherOptions):
+    return MultiDeviceTeacher(options) if len(options.devices) >= 2 else load_teacher(options)
+
+
 def encode_with_teacher(
     texts: Sequence[str],
     options: TeacherOptions,
@@ -160,7 +212,7 @@ def encode_with_teacher(
     """Normalized float32 teacher embeddings for `texts`, cached in `cache_dir/<hash>.npy`.
 
     Finished chunks are kept as `<hash>.chunk<i>.npy` until the whole result is cached, so an interrupted
-    run resumes where it stopped.
+    run resumes where it stopped. With two or more `options.devices` each chunk is split across them.
 
     :raises ValueError: if `texts` is empty.
     """
@@ -179,26 +231,32 @@ def encode_with_teacher(
     teacher = None
     out: np.ndarray | None = None
     chunk_files = []
-    for index, start in enumerate(range(0, len(texts), chunk_size)):
-        chunk_file = cache_dir / f"{key}.chunk{index}.npy"
-        chunk_files.append(chunk_file)
-        if chunk_file.exists():
-            vectors = np.load(chunk_file)
-        else:
-            if teacher is None:
-                teacher = load_teacher(options)
-            chunk = [options.document_prefix + text for text in texts[start : start + chunk_size]]
-            vectors = teacher.encode(chunk, batch_size=options.batch_size, normalize_embeddings=True)
-            partial_chunk = chunk_file.with_name(f"{chunk_file.stem}.partial.npy")
-            np.save(partial_chunk, np.asarray(vectors, dtype=np.float32))
-            partial_chunk.replace(chunk_file)  # a killed run never leaves a truncated chunk behind
-        if out is None:
-            out = np.empty((len(texts), vectors.shape[1]), dtype=np.float32)
-        out[start : start + len(vectors)] = vectors
-        if progress:
-            progress(start + len(vectors), len(texts))
+    # Process-specific temporary names: two runs with the same teacher and texts never write the same file.
+    pid = os.getpid()
+    try:
+        for index, start in enumerate(range(0, len(texts), chunk_size)):
+            chunk_file = cache_dir / f"{key}.chunk{index}.npy"
+            chunk_files.append(chunk_file)
+            if chunk_file.exists():
+                vectors = np.load(chunk_file)
+            else:
+                if teacher is None:
+                    teacher = _open_teacher(options)
+                chunk = [options.document_prefix + text for text in texts[start : start + chunk_size]]
+                vectors = teacher.encode(chunk, batch_size=options.batch_size, normalize_embeddings=True)
+                partial_chunk = chunk_file.with_name(f"{chunk_file.stem}.{pid}.partial.npy")
+                np.save(partial_chunk, np.asarray(vectors, dtype=np.float32))
+                partial_chunk.replace(chunk_file)  # a killed run never leaves a truncated chunk behind
+            if out is None:
+                out = np.empty((len(texts), vectors.shape[1]), dtype=np.float32)
+            out[start : start + len(vectors)] = vectors
+            if progress:
+                progress(start + len(vectors), len(texts))
+    finally:
+        if isinstance(teacher, MultiDeviceTeacher):
+            teacher.close()
 
-    partial = cache_dir / f"{key}.partial.npy"
+    partial = cache_dir / f"{key}.{pid}.partial.npy"
     np.save(partial, out)
     partial.replace(cache_file)  # atomic, so an interrupted run never leaves a truncated cache file
     for chunk_file in chunk_files:

@@ -77,7 +77,9 @@ Begründung und was vor einer Veröffentlichung zu prüfen ist: [docs/de/daten-u
 Empfehlung: gte (Referenz), bge-m3 und Qwen3-Embedding-4B per 3-Fold-Kreuzvalidierung vergleichen und danach
 `rtx5060ti-final-5fold.json` mit dem Gewinner laufen lassen. Begründung, Quellen und was nicht passt oder nicht
 frei lizenziert ist: [docs/de/lehrermodelle.md](docs/de/lehrermodelle.md). GPU-Einrichtung und Laufzeiten:
-[docs/de/gpu-einrichtung.md](docs/de/gpu-einrichtung.md).
+[docs/de/gpu-einrichtung.md](docs/de/gpu-einrichtung.md). Ein PC mit **zwei 16-GB-GPUs**, per SSH von einem anderen
+Rechner gesteuert (paralleler Lehrervergleich, finaler Lauf auf beiden Karten, `scripts/remote.sh` /
+`remote.ps1`): [docs/de/zwei-gpus.md](docs/de/zwei-gpus.md).
 
 ## Evaluation und k-Fold-Kreuzvalidierung
 
@@ -94,6 +96,8 @@ python -m m2vtrain init-config meine.json --synthetic --keywords data/keywords.t
 python -m m2vtrain run meine.json                   # Laufordner: runs/<Zeitstempel>-<Name>
 python -m m2vtrain run runs/<lauf>/config.json      # einen Lauf mit gleichen Optionen wiederholen
 python -m m2vtrain compare [runs/a runs/b] [--mode lemma]
+python -m m2vtrain status                           # Zustand und Schritt der letzten Läufe
+python -m m2vtrain stop [runs/<lauf>]               # einen oder alle laufenden Läufe beenden
 python -m m2vtrain extract-keywords export.csv.gz data/keywords.txt [--min-docs 3] [--with-counts]
 python -m m2vtrain upload models/<lauf> <user>/<modell> [--public]
 ```
@@ -106,8 +110,8 @@ Schlüssel und falsche Typen werden abgelehnt. Alle Optionen: [docs/de/konfigura
 ```
 m2vtrain/          Python-Paket (data, sources, split, vocab, targets, train, evaluate, pipeline, export, cli)
 ui/                Streamlit-Oberfläche
-configs/           fertige Laufkonfigurationen (CPU-Schnelltest, Lehrervergleich RTX 5060 Ti, finaler Lauf)
-scripts/           Einrichtung (Windows/Linux), GPU-Check, abgekoppelte Läufe, Warteschlangen
+configs/           fertige Laufkonfigurationen (CPU-Schnelltest, Lehrervergleich RTX 5060 Ti, finaler Lauf, dual-gpu/)
+scripts/           Einrichtung (Windows/Linux), GPU-Check, abgekoppelte Läufe, Warteschlangen, Steuerung per SSH
 docs/en, docs/de   Dokumentation auf Englisch und Deutsch
 tests/             Offline-Tests mit einem winzigen lokalen Lehrermodell (keine Downloads)
 ```
@@ -137,6 +141,7 @@ model.encode([to_lemma_text("die schülerinnen rechnen mit brüchen")])   # -> "
 - [Lehrermodelle](docs/de/lehrermodelle.md)
 - [Evaluation und k-Fold](docs/de/evaluierung.md)
 - [GPU-Einrichtung (RTX 5060 Ti)](docs/de/gpu-einrichtung.md)
+- [Zwei GPUs und Fernsteuerung](docs/de/zwei-gpus.md)
 - [Konfiguration](docs/de/konfiguration.md)
 - [Erfahrungen aus bisherigen Läufen](docs/de/erfahrungen.md)
 

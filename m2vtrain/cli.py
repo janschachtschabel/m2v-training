@@ -155,6 +155,50 @@ def _compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _status(args: argparse.Namespace) -> int:
+    from m2vtrain.runs import describe_state, list_runs
+
+    runs = list_runs(Path(args.runs_dir))[: args.limit]
+    if not runs:
+        print(f"No runs in {args.runs_dir}/")
+        return 0
+    for run in runs:
+        status = run.status
+        line = f"{run.run_id}  {describe_state(status)}"
+        if status is not None and status.stages:
+            line += f"  [{status.stage_index}/{len(status.stages)}] {status.stage}"
+            if status.progress is not None and status.state.value == "running":
+                line += f" {status.progress:.0%}"
+            if status.message:
+                line += f"  {status.message}"
+            if status.error:
+                line += f"\n    {status.error.strip().splitlines()[-1]}"
+        print(line)
+    return 0
+
+
+def _stop(args: argparse.Namespace) -> int:
+    from m2vtrain.runs import list_runs, stop_run
+    from m2vtrain.status import RunState, is_stale
+
+    if args.runs:
+        run_dirs = [Path(path) for path in args.runs]
+    else:
+        run_dirs = [
+            run.path
+            for run in list_runs(Path(args.runs_dir))
+            if run.status is not None and run.status.state is RunState.RUNNING and not is_stale(run.status)
+        ]
+    if not run_dirs:
+        print("No running runs.")
+    failed = 0
+    for run_dir in run_dirs:
+        stopped = stop_run(run_dir)
+        failed += not stopped
+        print(f"{run_dir.name}: {'stopped' if stopped else 'not running or could not be stopped'}")
+    return 1 if failed else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="m2vtrain", description="Train German education Model2Vec models.")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -191,6 +235,16 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--mode", choices=["raw", "lemma"], default="raw", help="evaluation input mode")
     compare.add_argument("--no-baselines", action="store_true", help="only the trained models")
     compare.set_defaults(handler=_compare)
+
+    status = commands.add_parser("status", help="show state and current stage of the latest runs")
+    status.add_argument("--runs-dir", default="runs")
+    status.add_argument("--limit", type=int, default=10, help="number of runs, newest first (default: 10)")
+    status.set_defaults(handler=_status)
+
+    stop = commands.add_parser("stop", help="stop runs (default: all running runs)")
+    stop.add_argument("runs", nargs="*", help="run folders (default: every running run in --runs-dir)")
+    stop.add_argument("--runs-dir", default="runs")
+    stop.set_defaults(handler=_stop)
 
     upload = commands.add_parser("upload", help="upload a finished model folder to the Hugging Face Hub")
     upload.add_argument("model_dir")
