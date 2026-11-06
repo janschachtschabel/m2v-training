@@ -1,33 +1,76 @@
 # m2v-training
 
-Train fast, static [Model2Vec](https://github.com/MinishLab/model2vec) embedding models for **German education
-content** that recognise nouns and keywords well, and evaluate them cleanly.
+**Small, fast embedding models for German educational content, trained from a large transformer and evaluated
+honestly.**
 
 *Deutsche Fassung: [README.de.md](README.de.md)*
 
-A Model2Vec model needs no GPU and no transformer at inference time: a text is embedded by looking up and
-averaging token vectors. This repository contains the complete training setup: data preparation, vocabulary,
-distillation from a transformer teacher, [Tokenlearn](https://github.com/MinishLab/tokenlearn)-style
-fine-tuning, contrastive pair training, a domain evaluation (also as k-fold cross-validation), model cards and
-Hugging Face upload, plus a small Streamlit UI.
+## What this repository does
 
-## What a run does
+It trains [Model2Vec](https://github.com/MinishLab/model2vec) models: static embedding models that turn a text
+into a vector by looking up one vector per token and averaging them. Such a model needs no GPU and no transformer
+at inference time and is orders of magnitude faster than a transformer on a CPU, so it fits where a transformer
+does not: search-as-you-type, batch jobs over hundreds of thousands of records, small servers without a GPU.
 
-1. **Load data**: the openly licensed synthetic dataset, plain keyword lists and (optionally) local metadata
-   exports. See [Data basis](#data-basis).
-2. **Split** leakage-free: near-duplicates and records of the same topic always stay on one side. Either one
-   held-out test split or **k folds**.
-3. **Vocabulary**: corpus words, their noun base forms (lemmas), lowercase variants and keywords are added to the
-   teacher's tokenizer, so the model works on raw text and on noun/base-form input.
-4. **Distill** a static model from the teacher (default `Alibaba-NLP/gte-multilingual-base`).
-5. **Tokenlearn**: train token vectors so that averaged texts reproduce the teacher's sentence embeddings
-   (documents, full-text chunks, questions, keyword terms and their lowercase/base-form spellings).
-6. **Pair training** (InfoNCE): keyword -> document, title -> description, question -> document.
-7. **Evaluate** and **save** with a model card (keyword search nDCG@10, title -> description MRR@10,
-   question -> document MRR@10, subject classification macro-F1; raw and noun/base-form input; TF-IDF and other
-   models for comparison).
+The models here are tuned for **German learning materials** (worksheets, videos, courses, OER metadata): finding
+materials for a keyword or question, matching a title to its description, and recognising the school subject.
+These tasks hinge on nouns and subject terms ("Bruchrechnung", "Photosynthese", "Zellatmung"), which generic
+static models handle poorly.
 
-## Quick start
+The repository contains the complete pipeline, from data to a published model:
+
+```mermaid
+flowchart LR
+  A["Synthetic dataset<br/>(CC BY 4.0)"] --> S
+  B["Keyword list<br/>(terms only)"] --> S
+  C["Local exports<br/>(optional, private)"] -.-> S
+  S["Leakage-free split<br/>or k folds"] --> V["Vocabulary<br/>words, base forms,<br/>lowercase, keywords"]
+  V --> D["Distillation<br/>from the teacher"]
+  D --> T["Tokenlearn<br/>imitate teacher embeddings"]
+  T --> P["Pair training<br/>keyword/title/question → document"]
+  P --> E["Evaluation<br/>vs TF-IDF and other models"]
+  E --> M["Model card<br/>and upload"]
+```
+
+Each step is explained in [docs/en/how-it-works.md](docs/en/how-it-works.md).
+
+## Principles
+
+1. **Transformer quality at training time, lookup speed at use.** A strong, freely licensed transformer (the
+   *teacher*) is used only during training. Its knowledge is distilled into the static model and then refined by
+   training the token vectors to reproduce the teacher's sentence embeddings (tokenlearn) and to match related
+   texts (pair training).
+2. **Built for how people search.** Users type single nouns, in lowercase, inflected ("brüche", "Zellen"). The
+   vocabulary therefore holds whole words, their noun base forms and lowercase variants next to the teacher's
+   subword tokens, and training mixes raw text with base-form text, so the same model works on raw text and on
+   lemmatised input. See [lessons learned](docs/en/lessons-learned.md) for why.
+3. **A data basis that can be documented.** Training needs nothing that cannot be published: an openly
+   licensed synthetic dataset and a plain list of subject terms. Private exports can be used for experiments, but
+   they never enter the repository, and model cards do not describe them unless asked to.
+   [Data and licensing](docs/en/data-and-licensing.md).
+4. **Honest evaluation.** Near-duplicates and records of the same topic never sit on both sides of a split.
+   k-fold cross-validation uses all data for training and still tests every model on data it never saw; results
+   are mean ± standard deviation. Every run is compared with TF-IDF and other models, on raw and on base-form
+   input, and only runs with the same split fingerprint are compared. [Evaluation](docs/en/evaluation.md).
+5. **Free licenses only.** Teachers and data are Apache 2.0, MIT or CC BY; non-commercial models are not used. The
+   model card carries the right license and the attribution the data requires.
+   [Teacher models](docs/en/teacher-models.md).
+6. **Reproducible and resumable.** Every run stores its complete config; `run runs/<run>/config.json` repeats
+   it. Seeds fix splits and samples. Teacher embeddings are cached in blocks, so an interrupted run continues
+   where it stopped.
+7. **Runs on the hardware at hand.** The same configs work on a CPU laptop, one GPU or a PC with two GPUs that is
+   controlled from another computer. Long runs are started detached, so closing a terminal does not end them.
+
+## Status
+
+The predecessor of this setup produced
+[`JanSchachtschabel/m2v-gte-256-edu-v2`](https://huggingface.co/JanSchachtschabel/m2v-gte-256-edu-v2) (teacher
+gte-multilingual-base, 256 dimensions, trained on a CPU). On its own test set tokenlearn plus pair training raised
+keyword search nDCG@10 from 0.084 to 0.323 compared with plain distillation, and the model beat TF-IDF and
+potion-multilingual-128M. Next: a stronger teacher on a GPU (Qwen3-Embedding-4B, bge-m3 and gte compared by
+3-fold cross-validation) on the documentable data basis, then a final 5-fold run.
+
+## Getting started
 
 ```bash
 git clone https://github.com/janschachtschabel/m2v-training
@@ -35,87 +78,22 @@ cd m2v-training
 ./scripts/setup_linux.sh            # Windows: .\scripts\setup_windows.ps1  (installs PyTorch for CUDA 12.8+)
 source .venv/bin/activate           # Windows: .venv\Scripts\Activate.ps1
 
-# keyword list (terms only) from a local metadata export, optional but recommended
+# optional but recommended: a keyword list (terms only) from a local metadata export
 python -m m2vtrain extract-keywords path/to/export.csv.gz data/keywords.txt --min-docs 3
 
-# a few minutes on a CPU: checks that everything works end to end
+# a few minutes on a CPU: checks the whole pipeline end to end
 python -m m2vtrain run configs/smoke-test-cpu.json
-
-# teacher comparison on the GPU, then the final 5-fold run with the winner
-python -m m2vtrain run configs/rtx5060ti-02-bge-m3.json
-python -m m2vtrain compare
 ```
 
-The UI does the same with forms: `streamlit run ui/app.py` (start it in the repository folder; it only listens
-on localhost).
+Then pick the path that matches your hardware:
 
-## Data basis
-
-The goal is a training basis that can be **documented and published without violating anyone's rights**:
-
-| Source | What is used | License / status |
+| Hardware | What to run | Guide |
 |---|---|---|
-| [JanSchachtschabel/synthetic-german-educational-materials-50k](https://huggingface.co/datasets/JanSchachtschabel/synthetic-german-educational-materials-50k) | titles, descriptions, keywords, full texts, questions, subjects, topics | CC BY 4.0, LLM-written texts |
-| Keyword list (`data/keywords.txt`) | terms only, one per line; no titles, descriptions, ids or links | extracted locally with `extract-keywords`; never committed |
-| Local exports (`data_files`) | optional, for private experiments | never committed; never described in model cards |
+| CPU only | `configs/smoke-test-cpu.json`, or your own config with the default teacher (a full run takes most of a day) | [Configuration](docs/en/configuration.md) |
+| One GPU with 16 GB (e.g. RTX 5060 Ti) | teacher comparison `configs/rtx5060ti-0*.json`, then `configs/rtx5060ti-final-5fold.json` | [GPU setup](docs/en/gpu-setup.md) |
+| Two GPUs, controlled over SSH | `scripts/remote.sh start-compare`, then `start-final` | [Two GPUs](docs/en/dual-gpu.md) |
 
-Models trained only on the first two sources can be described fully. Details, the reasoning and what to check
-before publishing: [docs/en/data-and-licensing.md](docs/en/data-and-licensing.md).
-
-## Teacher models for an RTX 5060 Ti (16 GB)
-
-| Teacher | License | Size | German retrieval (MIRACL-de nDCG@10) | Config |
-|---|---|---|---|---|
-| `Qwen/Qwen3-Embedding-4B` | Apache 2.0 | 4.0B, ~8 GB in bf16 | 62.98 | `rtx5060ti-05-qwen3-embedding-4b.json` |
-| `BAAI/bge-m3` | MIT | 568M | 57.59 | `rtx5060ti-02-bge-m3.json` |
-| `Snowflake/snowflake-arctic-embed-l-v2.0` | Apache 2.0 | 568M | – | `rtx5060ti-03-arctic-embed-l-v2.json` |
-| `Qwen/Qwen3-Embedding-0.6B` | Apache 2.0 | 0.6B | 54.21 | `rtx5060ti-04-qwen3-embedding-0.6b.json` |
-| `Alibaba-NLP/gte-multilingual-base` (current) | Apache 2.0 | 305M | – | `rtx5060ti-01-gte-reference.json` |
-
-Recommendation: compare gte (reference), bge-m3 and Qwen3-Embedding-4B with 3-fold cross-validation, then run
-`rtx5060ti-final-5fold.json` with the winner. Reasoning, sources and what does not fit or is not freely licensed:
-[docs/en/teacher-models.md](docs/en/teacher-models.md). GPU setup and run times:
-[docs/en/gpu-setup.md](docs/en/gpu-setup.md). A PC with **two 16 GB GPUs**, controlled from another computer over SSH
-(parallel teacher comparison, final run on both cards, `scripts/remote.sh` / `remote.ps1`):
-[docs/en/dual-gpu.md](docs/en/dual-gpu.md).
-
-## Evaluation and k-fold cross-validation
-
-With `"cross_validation": {"folds": 5}` the documents are split into 5 folds (grouped by topic and
-near-duplicates). Five models are trained, each tested on the fold it never saw; the metrics are averaged and
-reported as mean ± standard deviation. With `"final_model": true` a last model is trained on **all** documents and
-published with the cross-validated metrics. Teacher embeddings are computed only once for all folds.
-Details: [docs/en/evaluation.md](docs/en/evaluation.md).
-
-## Command line
-
-```bash
-python -m m2vtrain init-config my.json --synthetic --keywords data/keywords.txt --folds 5
-python -m m2vtrain run my.json                      # run folder: runs/<timestamp>-<name>
-python -m m2vtrain run runs/<run>/config.json       # repeat a run with the same options
-python -m m2vtrain compare [runs/a runs/b] [--mode lemma]
-python -m m2vtrain status                           # state and stage of the latest runs
-python -m m2vtrain stop [runs/<run>]                # stop one or all running runs
-python -m m2vtrain extract-keywords export.csv.gz data/keywords.txt [--min-docs 3] [--with-counts]
-python -m m2vtrain upload models/<run> <user>/<model> [--public]
-```
-
-A config needs only `name`, a data source and the values that differ from the defaults; unknown keys and wrong
-types are rejected. All options: [docs/en/configuration.md](docs/en/configuration.md).
-
-## Repository layout
-
-```
-m2vtrain/          Python package (data, sources, split, vocab, targets, train, evaluate, pipeline, export, cli)
-ui/                Streamlit UI (German)
-configs/           ready-made run configs (CPU smoke test, RTX 5060 Ti teacher comparison, final run, dual-gpu/)
-scripts/           setup (Windows/Linux), GPU check, detached runs, run queues, server/remote control over SSH
-docs/en, docs/de   documentation in English and German
-tests/             offline tests with a tiny local teacher (no downloads)
-```
-
-At runtime the folders `data/`, `runs/`, `models/` and `cache/` are created in the repository folder (or under
-`M2V_HOME`); they are git-ignored.
+The Streamlit UI does the same with forms: `streamlit run ui/app.py` (German; listens on localhost only).
 
 ## Using a trained model
 
@@ -133,15 +111,48 @@ from m2vtrain.lemma import to_lemma_text
 model.encode([to_lemma_text("die schülerinnen rechnen mit brüchen")])   # -> "Schülerin Bruch"
 ```
 
-## Further documentation
+## Command line
 
-- [Data basis and licensing](docs/en/data-and-licensing.md)
-- [Teacher models](docs/en/teacher-models.md)
-- [Evaluation and k-fold](docs/en/evaluation.md)
-- [GPU setup (RTX 5060 Ti)](docs/en/gpu-setup.md)
-- [Two GPUs and remote control](docs/en/dual-gpu.md)
-- [Configuration reference](docs/en/configuration.md)
-- [Lessons learned from earlier runs](docs/en/lessons-learned.md)
+```bash
+python -m m2vtrain init-config my.json --synthetic --keywords data/keywords.txt --folds 5
+python -m m2vtrain run my.json                      # run folder: runs/<timestamp>-<name>
+python -m m2vtrain run runs/<run>/config.json       # repeat a run with the same options
+python -m m2vtrain status                           # state and stage of the latest runs
+python -m m2vtrain stop [runs/<run>]                # stop one or all running runs
+python -m m2vtrain compare [runs/a runs/b] [--mode lemma]
+python -m m2vtrain extract-keywords export.csv.gz data/keywords.txt [--min-docs 3] [--with-counts]
+python -m m2vtrain upload models/<run> <user>/<model> [--public]
+```
+
+A config needs only `name`, a data source and the values that differ from the defaults; unknown keys and wrong
+types are rejected. All options: [docs/en/configuration.md](docs/en/configuration.md).
+
+## Documentation
+
+| Page | Contents |
+|---|---|
+| [How it works](docs/en/how-it-works.md) | every pipeline step, what it does and why, and what a run writes |
+| [Data and licensing](docs/en/data-and-licensing.md) | the data sources, what never goes into the repository, what to check before publishing |
+| [Teacher models](docs/en/teacher-models.md) | free multilingual teachers for 16 GB, recommendation, what does not fit |
+| [Evaluation and k-fold](docs/en/evaluation.md) | metrics, splits, cross-validation, comparing runs, limits of the numbers |
+| [GPU setup](docs/en/gpu-setup.md) | installation for RTX 50xx, run times, memory |
+| [Two GPUs and remote control](docs/en/dual-gpu.md) | parallel teacher comparison, final run on both cards, control over SSH |
+| [Configuration](docs/en/configuration.md) | every config key and the ready-made configs |
+| [Lessons learned](docs/en/lessons-learned.md) | what helped in earlier runs, pitfalls, ideas not yet tried |
+
+## Repository layout
+
+```
+m2vtrain/          Python package (data, sources, split, vocab, targets, train, evaluate, pipeline, export, cli)
+ui/                Streamlit UI (German)
+configs/           ready-made run configs (CPU smoke test, RTX 5060 Ti teacher comparison, final runs, dual-gpu/)
+scripts/           setup (Windows/Linux), GPU check, detached runs, run queues, control over SSH
+docs/en, docs/de   documentation in English and German
+tests/             offline tests with a tiny local teacher (no downloads)
+```
+
+At runtime the folders `data/`, `runs/`, `models/` and `cache/` are created in the folder you run from (the UI
+uses `M2V_HOME` if it is set); git ignores them.
 
 ## Tests
 
@@ -153,6 +164,6 @@ The tests need no internet; they build a tiny random teacher and a tiny syntheti
 
 ## License
 
-Code: Apache 2.0 (see [LICENSE](LICENSE)). Trained models inherit obligations from their teacher and data:
-set `license` in the config accordingly (for example `apache-2.0` for Apache teachers, `mit` for bge-m3) and keep
-the CC BY 4.0 attribution of the synthetic dataset, which the generated model card includes.
+Code: Apache 2.0 (see [LICENSE](LICENSE)). Trained models inherit obligations from their teacher and data: set
+`license` in the config accordingly (for example `apache-2.0` for Apache teachers, `mit` for bge-m3) and keep the
+CC BY 4.0 attribution of the synthetic dataset, which the generated model card includes.

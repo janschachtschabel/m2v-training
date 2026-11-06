@@ -47,8 +47,8 @@ Ergebnissen auf dem synthetischen Datensatz.
 
 ## Noch nicht ausprobierte Ideen
 
-- ein größerer Lehrer (die RTX-5060-Ti-Konfigurationen dieses Repositorys)
-- 512 Dimensionen für den besten Lehrer
+- ein größerer Lehrer (Konfigurationen liegen bereit: `configs/rtx5060ti-0*.json`, `configs/dual-gpu/`)
+- 512 Dimensionen für den besten Lehrer (`configs/dual-gpu/final-5fold-qwen3-4b-512.json`)
 - BM25 plus statische Embeddings als hybride Suche
 - schwere Negativbeispiele (hard negatives) im Paar-Training
 - eine kleine Menge echter Suchanfragen mit bewerteten Treffern als zusätzlicher Testteil

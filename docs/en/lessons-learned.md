@@ -42,8 +42,8 @@ card and refer to that model's own test set; they are **not comparable** with re
 
 ## Ideas not yet tried
 
-- a larger teacher (this repository's RTX 5060 Ti configs)
-- 512 dimensions for the best teacher
+- a larger teacher (configs are ready: `configs/rtx5060ti-0*.json`, `configs/dual-gpu/`)
+- 512 dimensions for the best teacher (`configs/dual-gpu/final-5fold-qwen3-4b-512.json`)
 - BM25 + static embeddings as hybrid search
 - hard negatives in pair training
 - a small set of real user queries with judged results as an extra test set
