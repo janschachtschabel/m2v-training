@@ -1,0 +1,48 @@
+{
+  "name": "m2v-qwen3-4b-256-edu",
+  "synthetic": {
+    "enabled": true
+  },
+  "keyword_lists": {
+    "files": [
+      "data/keywords.txt"
+    ]
+  },
+  "cross_validation": {
+    "folds": 5,
+    "final_model": true
+  },
+  "teacher": {
+    "model_name": "Qwen/Qwen3-Embedding-4B",
+    "pooling": "last",
+    "device": "cuda",
+    "batch_size": 16,
+    "max_seq_length": 512,
+    "dtype": "bfloat16"
+  },
+  "pca_dims": 256,
+  "input_mode": "mixed",
+  "vocab": {
+    "max_vocab_size": 250000
+  },
+  "tokenlearn": {
+    "train": {
+      "device": "cuda",
+      "max_epochs": 40
+    }
+  },
+  "pairs": {
+    "enabled": true,
+    "max_pairs": null,
+    "train": {
+      "device": "cuda",
+      "max_epochs": 35
+    }
+  },
+  "quantize_to": "float16",
+  "baseline_models": [
+    "JanSchachtschabel/m2v-gte-256-edu-v2",
+    "minishlab/potion-multilingual-128M"
+  ],
+  "license": "apache-2.0"
+}
